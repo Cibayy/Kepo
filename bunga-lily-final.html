@@ -6,7 +6,6 @@
 <title>Taman Edelweis & Cosmos - Tumbuh Alami</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-*{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#04080f;}
 canvas{display:block;}
 </style>
@@ -14,10 +13,11 @@ canvas{display:block;}
 <body>
 <canvas id="c"></canvas>
 <script>
+const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
-// Canvas BG (full layar, di belakang canvas bunga)
 const bgCanvas = document.createElement('canvas');
 bgCanvas.id = 'bgCanvas';
 bgCanvas.style.cssText = 'position:fixed;top:0;left:0;z-index:0;';
@@ -25,28 +25,25 @@ document.body.insertBefore(bgCanvas, canvas);
 canvas.style.cssText = 'position:fixed;z-index:1;top:50%;left:50%;transform:translate(-50%,-50%);';
 const bgCtx = bgCanvas.getContext('2d');
 
-let W, H, BW, BH;
+let W, H, BW, BH, bgDirty = true;
 function resize(){
-  // ukuran logis bunga — scale agar muat di layar device
-  const maxW = Math.min(window.innerWidth,  780);
+  const maxW = Math.min(window.innerWidth, 780);
   const maxH = Math.min(window.innerHeight, 680);
-  // pertahankan rasio 780:680, fit dalam layar
   const scale = Math.min(maxW / 780, maxH / 680);
   W = Math.round(780 * scale);
   H = Math.round(680 * scale);
   canvas.width  = W;
   canvas.height = H;
-
-  // background canvas = full layar
   BW = window.innerWidth;
   BH = window.innerHeight;
   bgCanvas.width  = BW;
   bgCanvas.height = BH;
   bgCanvas.style.width  = BW + 'px';
   bgCanvas.style.height = BH + 'px';
+  bgDirty = true;
 }
 resize();
-window.addEventListener('resize', resize);
+window.addEventListener('resize', ()=>{ resize(); bgDirty = true; });
 
 function drawBackground(){
   bgCtx.clearRect(0,0,BW,BH);
@@ -64,36 +61,36 @@ function glow(c,b){ ctx.shadowColor=c; ctx.shadowBlur=b; }
 function ng(){ ctx.shadowBlur=0; }
 
 let t = 0;
-const TOTAL = 200; // dipercepat
+const TOTAL = isMobile ? 80 : 100;
+const T_SPEED = isMobile ? 5 : 3;
 
-/* ══ BINTANG — di bgCanvas (full layar) ══ */
-const STARS = Array.from({length:160},()=>({
+// Bintang — statis, digambar sekali ke bgCanvas
+const STARS = Array.from({length: isMobile ? 80 : 160},()=>({
   x:Math.random(), y:Math.random()*0.85,
   r:0.3+Math.random()*1.3,
   a:0.3+Math.random()*0.7,
-  spd:0.004+Math.random()*0.012,
-  phase:Math.random()*Math.PI*2
 }));
-function drawStars(){
+
+function drawStarsStatic(){
   STARS.forEach(s=>{
-    s.phase+=s.spd;
-    bgCtx.globalAlpha=s.a*(0.4+0.6*Math.abs(Math.sin(s.phase)));
+    bgCtx.globalAlpha = s.a;
     bgCtx.fillStyle='#ffffff';
     bgCtx.beginPath();
-    bgCtx.arc(s.x*BW,s.y*BH,s.r,0,Math.PI*2);
+    bgCtx.arc(s.x*BW, s.y*BH, s.r, 0, Math.PI*2);
     bgCtx.fill();
   });
   bgCtx.globalAlpha=1;
 }
 
-/* ══ GLITTER — di bgCanvas ══ */
-const GLITTERS = Array.from({length:40},()=>({
+// Glitter — tetap animasi tapi dikurangi jumlahnya di mobile
+const GLITTERS = Array.from({length: isMobile ? 20 : 40},()=>({
   x:Math.random(), y:0.05+Math.random()*0.80,
   phase:Math.random()*Math.PI*2,
   spd:0.016+Math.random()*0.028,
   r:0.7+Math.random()*1.8,
   col:['#fffbe0','#ffd6ec','#e8e8ff'][Math.floor(Math.random()*3)]
 }));
+
 function drawGlitters(prog){
   if(prog<0.30) return;
   const show=clamp((prog-0.30)/0.30,0,1);
@@ -110,40 +107,30 @@ function drawGlitters(prog){
   bgCtx.globalAlpha=1;
 }
 
-/* ══ BUNGA (Tumbuh Alami) ══ */
 const ROOT_X = 0.50;
 const ROOT_Y = 0.97;
 
-// warna per bunga berdasarkan id
 const LILY_COLORS = {
-  1: { p1:'#ffd0e8', p2:'#ff80b8', p3:'#e8408a', vein:'rgba(180,40,100,0.28)', spot:'rgba(160,20,80,0.42)'  }, // pink magenta
-  2: { p1:'#ffe8f4', p2:'#ffaad4', p3:'#ff70b0', vein:'rgba(200,60,120,0.25)', spot:'rgba(180,40,100,0.38)' }, // pink muda
-  3: { p1:'#ffc8e0', p2:'#ff5a9a', p3:'#e02070', vein:'rgba(160,20,80,0.28)',  spot:'rgba(140,10,60,0.44)'  }, // pink tua/hot pink
-  4: { p1:'#ffd8ec', p2:'#ff90c8', p3:'#ee50a0', vein:'rgba(180,40,110,0.24)', spot:'rgba(160,20,90,0.40)'  }, // pink sedang
-  5: { p1:'#ffe0f0', p2:'#ffb0d8', p3:'#ff78b8', vein:'rgba(190,50,120,0.22)', spot:'rgba(170,30,100,0.36)' }, // pink pastel
+  1: { p1:'#ffd0e8', p2:'#ff80b8', p3:'#e8408a', vein:'rgba(180,40,100,0.28)', spot:'rgba(160,20,80,0.42)'  },
+  2: { p1:'#ffe8f4', p2:'#ffaad4', p3:'#ff70b0', vein:'rgba(200,60,120,0.25)', spot:'rgba(180,40,100,0.38)' },
+  3: { p1:'#ffc8e0', p2:'#ff5a9a', p3:'#e02070', vein:'rgba(160,20,80,0.28)',  spot:'rgba(140,10,60,0.44)'  },
+  4: { p1:'#ffd8ec', p2:'#ff90c8', p3:'#ee50a0', vein:'rgba(180,40,110,0.24)', spot:'rgba(160,20,90,0.40)'  },
+  5: { p1:'#ffe0f0', p2:'#ffb0d8', p3:'#ff78b8', vein:'rgba(190,50,120,0.22)', spot:'rgba(170,30,100,0.36)' },
 };
 
 const FLOWERS = [
   { id: 1, lean:-0.18, stemH:0.42, petalR:0.066, type:'cosmos',   delay:  0, seed: 14.22 },
-  { id: 2, lean:-0.09, stemH:0.56, petalR:0.072, type:'edelweis', delay: 50, seed: 88.45 },
-  { id: 3, lean: 0.00, stemH:0.70, petalR:0.082, type:'cosmos',   delay: 20, seed: 31.02 },
-  { id: 4, lean: 0.07, stemH:0.62, petalR:0.076, type:'edelweis', delay: 60, seed: 75.61 },
-  { id: 5, lean: 0.16, stemH:0.38, petalR:0.064, type:'cosmos',   delay: 10, seed: 43.19 },
+  { id: 2, lean:-0.09, stemH:0.56, petalR:0.072, type:'edelweis', delay: 30, seed: 88.45 },
+  { id: 3, lean: 0.00, stemH:0.70, petalR:0.082, type:'cosmos',   delay: 10, seed: 31.02 },
+  { id: 4, lean: 0.07, stemH:0.62, petalR:0.076, type:'edelweis', delay: 35, seed: 75.61 },
+  { id: 5, lean: 0.16, stemH:0.38, petalR:0.064, type:'cosmos',   delay:  5, seed: 43.19 },
 ];
 
-/* ══ LAVENDER ══
-   Ciri khas:
-   - Batang ramping tegak, sedikit condong
-   - Bulir (spike) panjang padat di ujung batang
-   - Bunga tabung kecil tersusun melingkar spiral di sepanjang bulir
-   - Warna ungu khas, ada juga ungu muda
-   - Daun lancip hijau keabu-abuan di batang bawah
-*/
 const LAVENDERS = [
-  { lean:-0.13, stemH:0.48, delay: 30, hue: 270, sat: 65, lit: 58 },
-  { lean: 0.05, stemH:0.44, delay: 55, hue: 265, sat: 60, lit: 65 },
-  { lean:-0.23, stemH:0.42, delay: 45, hue: 272, sat: 62, lit: 62 },
-  { lean: 0.18, stemH:0.46, delay: 60, hue: 268, sat: 58, lit: 68 },
+  { lean:-0.13, stemH:0.48, delay: 15, hue: 270, sat: 65, lit: 58 },
+  { lean: 0.05, stemH:0.44, delay: 25, hue: 265, sat: 60, lit: 65 },
+  { lean:-0.23, stemH:0.42, delay: 20, hue: 272, sat: 62, lit: 62 },
+  { lean: 0.18, stemH:0.46, delay: 30, hue: 268, sat: 58, lit: 68 },
 ];
 
 function drawLavender(lv, prog){
@@ -155,11 +142,10 @@ function drawLavender(lv, prog){
   const cpx = rx + lv.lean*W*prog*0.35;
   const cpy = ry - sH*0.50;
 
-  // ── batang ramping ──
   ctx.save();
   const sg = ctx.createLinearGradient(rx,ry,tx,ty);
   sg.addColorStop(0,'#1a2e12');
-  sg.addColorStop(1,'#8aaa70'); // hijau keabu-abuan khas lavender
+  sg.addColorStop(1,'#8aaa70');
   ctx.strokeStyle = sg;
   ctx.lineWidth = Math.max(1.2, W*0.004);
   ctx.lineCap = 'round';
@@ -170,7 +156,6 @@ function drawLavender(lv, prog){
   ctx.stroke();
   ng();
 
-  // ── daun lancip hijau keabu-abuan di batang bawah ──
   if(prog > 0.20){
     const lp = clamp((prog-0.20)/0.35, 0, 1);
     [[0.22,-1],[0.22,1],[0.42,-1],[0.42,1]].forEach(([frac,side])=>{
@@ -197,71 +182,51 @@ function drawLavender(lv, prog){
   }
   ctx.restore();
 
-  // ── bulir lavender (spike) ──
   const spikeProg = clamp((prog-0.35)/0.55, 0, 1);
   if(spikeProg <= 0) return;
   const ep = ease(spikeProg);
   const pulse = 0.5+0.5*Math.sin(t*0.05+lv.lean*8);
-
-  // panjang bulir = 22% tinggi canvas
   const spikeLen = H * 0.22 * ep;
-  // arah bulir = lanjutan dari batang
   const dx = tx - cpx, dy = ty - cpy;
   const stemAng = Math.atan2(dx, -dy);
-
-  // jumlah whorl (lingkaran bunga di bulir) — makin banyak makin padat
-  const nWhorl = Math.round(10 + 6*ep);
+  const nWhorl = Math.round((isMobile ? 7 : 10) + (isMobile ? 3 : 6)*ep);
 
   ctx.save();
   ctx.translate(tx, ty);
   ctx.rotate(stemAng);
-
-  // gambar batang bulir dulu
   ctx.strokeStyle = `hsl(${lv.hue-20},40%,35%)`;
   ctx.lineWidth = Math.max(0.8, W*0.0025);
   ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-spikeLen); ctx.stroke();
 
-  // setiap whorl: 4-6 bunga tabung kecil melingkar
   for(let w=0; w<nWhorl; w++){
     const wFrac = w/nWhorl;
-    // bulir tumbuh dari bawah ke atas
     const wProg = clamp((ep - wFrac*0.6)/0.5, 0, 1);
     if(wProg <= 0) continue;
     const we = ease(wProg);
-
     const wy = -spikeLen * wFrac * ep;
-    const nFlower = 5 + (w%2); // alternating 5-6
+    const nFlower = isMobile ? 4 : (5 + (w%2));
 
     for(let fi=0;fi<nFlower;fi++){
-      const fAng = (fi/nFlower)*Math.PI*2 + w*0.35; // spiral offset
+      const fAng = (fi/nFlower)*Math.PI*2 + w*0.35;
       const spread = W*0.012 * we;
       const fx = Math.sin(fAng)*spread;
-      const fy = wy + Math.cos(fAng)*spread*0.25; // sedikit oval
-
+      const fy = wy + Math.cos(fAng)*spread*0.25;
       ctx.save();
       ctx.translate(fx, fy);
       ctx.globalAlpha = we*(0.80+0.20*pulse);
-
-      // bunga tabung kecil — 2 bibir (upper & lower lip khas Lamiaceae)
       const flen = W*0.018*we;
       const fwid = W*0.006*we;
-
-      // kelopak luar (calyx) hijau keunguan
       glow(`hsl(${lv.hue},60%,30%)`, 3);
       ctx.fillStyle=`hsl(${lv.hue-10},35%,28%)`;
       ctx.beginPath();
       ctx.ellipse(0,0,fwid*0.7,fwid*0.5,0,0,Math.PI*2);
       ctx.fill();
-
-      // mahkota tabung ungu
       glow(`hsl(${lv.hue},${lv.sat}%,${lv.lit+10}%)`, 6+pulse*3);
       const fc = ctx.createLinearGradient(0,0,0,-flen);
       fc.addColorStop(0,`hsl(${lv.hue},${lv.sat}%,${lv.lit}%)`);
       fc.addColorStop(0.5,`hsl(${lv.hue-5},${lv.sat+5}%,${lv.lit+12}%)`);
       fc.addColorStop(1,`hsl(${lv.hue+5},${lv.sat-10}%,${lv.lit+20}%)`);
       ctx.fillStyle=fc;
-
-      // tabung bunga kecil menghadap ke luar
       ctx.rotate(fAng + Math.PI*0.5);
       ctx.beginPath();
       ctx.moveTo(0,0);
@@ -274,7 +239,6 @@ function drawLavender(lv, prog){
       ctx.restore();
     }
   }
-  // ujung bulir — kuncup kecil
   ctx.save();
   ctx.globalAlpha = ep*0.7;
   glow(`hsl(${lv.hue},60%,50%)`,4);
@@ -284,7 +248,6 @@ function drawLavender(lv, prog){
   ctx.fill();
   ng();
   ctx.restore();
-
   ctx.restore();
   ctx.globalAlpha=1;
 }
@@ -359,10 +322,6 @@ function drawStem(f, prog){
   }
 }
 
-/* ══ BUNGA LILY ══
-   6 kelopak (3 petal + 3 sepal), lebar, curl di ujung,
-   bintik di dalam, mid-vein, stamen + pistil
-*/
 function drawLily(tx, ty, pR, prog, flowerId){
   const pp = clamp((prog-0.30)/0.58, 0, 1);
   if(pp <= 0) return;
@@ -374,14 +333,12 @@ function drawLily(tx, ty, pR, prog, flowerId){
   ctx.save();
   ctx.translate(tx, ty);
 
-  // ── 3 sepal (belakang, sedikit lebih kecil & pucat) ──
   for(let i=0;i<3;i++){
     const ang = (i/3)*Math.PI*2 + Math.PI/3 + wobble;
     ctx.save();
     ctx.rotate(ang);
     ctx.scale(ep*0.86, ep*0.86);
     ctx.globalAlpha = ep*(0.75+0.12*pulse);
-
     const len=pR*1.52, w=pR*0.62;
     glow(pal.p2, 8+pulse*6);
     const sg=ctx.createLinearGradient(0,0,0,-len);
@@ -395,55 +352,47 @@ function drawLily(tx, ty, pR, prog, flowerId){
     ctx.restore();
   }
 
-  // ── 3 petal utama (depan, lebih besar & vivid) ──
   for(let i=0;i<3;i++){
     const ang = (i/3)*Math.PI*2 + wobble;
     ctx.save();
     ctx.rotate(ang);
     ctx.scale(ep, ep);
     ctx.globalAlpha = ep*(0.90+0.10*pulse);
-
     const len=pR*1.65, w=pR*0.72;
     glow(pal.p2, 18+pulse*10);
     const pg=ctx.createLinearGradient(0,0,0,-len);
     pg.addColorStop(0,pal.p1); pg.addColorStop(0.30,pal.p2);
     pg.addColorStop(0.78,pal.p3); pg.addColorStop(1,pal.p3);
     ctx.fillStyle=pg;
-
-    // kelopak lebar, melengkung, curl di ujung
     ctx.beginPath(); ctx.moveTo(0,0);
     ctx.bezierCurveTo(-w*0.52,-len*0.15,-w*0.68,-len*0.48,-w*0.28,-len*0.80);
     ctx.bezierCurveTo(-w*0.10,-len*0.95, w*0.10,-len*0.95, w*0.28,-len*0.80);
     ctx.bezierCurveTo( w*0.68,-len*0.48, w*0.52,-len*0.15, 0,0);
     ctx.closePath(); ctx.fill(); ng();
-
-    // mid-vein
     ctx.strokeStyle=pal.vein; ctx.lineWidth=1.0;
     ctx.beginPath(); ctx.moveTo(0,-len*0.04);
     ctx.quadraticCurveTo(0,-len*0.50,0,-len*0.82); ctx.stroke();
-
-    // highlight
     ctx.strokeStyle='rgba(255,255,255,0.32)'; ctx.lineWidth=0.85;
     ctx.beginPath(); ctx.moveTo(-w*0.16,-len*0.10);
     ctx.quadraticCurveTo(-w*0.52,-len*0.44,-w*0.20,-len*0.74); ctx.stroke();
-
-    // bintik-bintik di dalam kelopak
-    ctx.fillStyle=pal.spot;
-    for(let s=0;s<7;s++){
-      const sx=(Math.sin(i*31+s*17)*0.5)*w*0.52;
-      const sy=-(len*0.22+Math.abs(Math.sin(i*13+s*29))*len*0.52);
-      const sr=1.4+Math.abs(Math.sin(i*7+s*11))*2.2;
-      ctx.beginPath(); ctx.ellipse(sx,sy,sr,sr*1.3,Math.sin(s)*Math.PI,0,Math.PI*2); ctx.fill();
+    if(!isMobile){
+      ctx.fillStyle=pal.spot;
+      for(let s=0;s<7;s++){
+        const sx=(Math.sin(i*31+s*17)*0.5)*w*0.52;
+        const sy=-(len*0.22+Math.abs(Math.sin(i*13+s*29))*len*0.52);
+        const sr=1.4+Math.abs(Math.sin(i*7+s*11))*2.2;
+        ctx.beginPath(); ctx.ellipse(sx,sy,sr,sr*1.3,Math.sin(s)*Math.PI,0,Math.PI*2); ctx.fill();
+      }
     }
     ctx.restore();
   }
 
-  // ── stamen (6 benang sari) ──
   const sp=clamp((pp-0.52)/0.44,0,1);
   if(sp>0){
     const se=ease(sp);
-    for(let i=0;i<6;i++){
-      const ang=(i/6)*Math.PI*2+Math.PI/6;
+    const nStamen = isMobile ? 4 : 6;
+    for(let i=0;i<nStamen;i++){
+      const ang=(i/nStamen)*Math.PI*2+Math.PI/6;
       const wobS=Math.sin(t*0.016+i*1.2)*0.03;
       const endX=Math.sin(ang+wobS)*pR*0.30;
       const endY=-Math.cos(ang+wobS)*pR*1.02*se;
@@ -461,7 +410,6 @@ function drawLily(tx, ty, pR, prog, flowerId){
     ctx.globalAlpha=1;
   }
 
-  // ── pistil ──
   const pp2=clamp((pp-0.56)/0.40,0,1);
   if(pp2>0){
     const pe=ease(pp2);
@@ -476,42 +424,31 @@ function drawLily(tx, ty, pR, prog, flowerId){
   ctx.restore();
 }
 
-/* ══ BABY'S BREATH ══
-   Rumpun cabang tipis dengan bunga bintang mungil.
-   Tumbuh di antara & sekitar bunga lily.
-   Batang abu-hijau tipis, bercabang banyak,
-   bunga bintang 5 kelopak sangat kecil (2-5px).
-   Warna: putih bersih, merah muda pucat, lavender.
-*/
-
-// 5 rumpun Baby's Breath — lean kecil agar lebih tegak ke atas
-// tinggi bervariasi: rendah/sedang/agak tinggi, tidak melebihi lily
+// Baby's Breath
 const BB_CLUSTERS = [
   { x:0.50, baseY:0.97, h:0.18, lean:-0.16, delay:  0, col:'#ffffff',  colGlow:'#e8e8f8' },
-  { x:0.50, baseY:0.97, h:0.14, lean:-0.06, delay: 15, col:'#fde8f8',  colGlow:'#f0c8ec' },
-  { x:0.50, baseY:0.97, h:0.22, lean: 0.02, delay:  5, col:'#eeeeff',  colGlow:'#d8d8f8' },
-  { x:0.50, baseY:0.97, h:0.15, lean: 0.10, delay: 20, col:'#fde8f8',  colGlow:'#f0c8ec' },
-  { x:0.50, baseY:0.97, h:0.20, lean: 0.18, delay: 10, col:'#ffffff',  colGlow:'#f0f0ff' },
+  { x:0.50, baseY:0.97, h:0.14, lean:-0.06, delay: 10, col:'#fde8f8',  colGlow:'#f0c8ec' },
+  { x:0.50, baseY:0.97, h:0.22, lean: 0.02, delay:  3, col:'#eeeeff',  colGlow:'#d8d8f8' },
+  { x:0.50, baseY:0.97, h:0.15, lean: 0.10, delay: 12, col:'#fde8f8',  colGlow:'#f0c8ec' },
+  { x:0.50, baseY:0.97, h:0.20, lean: 0.18, delay:  6, col:'#ffffff',  colGlow:'#f0f0ff' },
 ];
 
-// Setiap cluster punya cabang-cabang yang di-generate deterministik
 function bbRand(seed, idx){
   const x = Math.sin(seed * 127.1 + idx * 311.7) * 43758.5453;
   return x - Math.floor(x);
 }
 
-// Gambar satu cabang rekursif: dari titik (px,py), arah angle, panjang len
+const BB_MAX_DEPTH = isMobile ? 3 : 5;
+const BB_MIN_LEN   = isMobile ? 5 : 2.5;
+
 function drawBBBranch(px, py, angle, len, depth, col, colGlow, prog, seed){
-  if(len < 2.5 || depth > 5) return;
+  if(len < BB_MIN_LEN || depth > BB_MAX_DEPTH) return;
   const ep = ease(clamp(prog,0,1));
   const endX = px + Math.sin(angle)*len*ep;
   const endY = py - Math.cos(angle)*len*ep;
 
-  // gambar batang tipis abu-hijau
   ctx.save();
-  ctx.strokeStyle = depth < 2
-    ? `rgba(80,105,60,0.88)`
-    : `rgba(110,130,85,0.75)`;
+  ctx.strokeStyle = depth < 2 ? `rgba(80,105,60,0.88)` : `rgba(110,130,85,0.75)`;
   ctx.lineWidth = Math.max(0.6, 2.4 - depth*0.32);
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -520,8 +457,7 @@ function drawBBBranch(px, py, angle, len, depth, col, colGlow, prog, seed){
   ctx.stroke();
   ctx.restore();
 
-  // di ujung cabang terdalam: gambar bunga bintang kecil
-  if(depth >= 4 || (depth >= 3 && len < 8)){
+  if(depth >= BB_MAX_DEPTH || (depth >= BB_MAX_DEPTH-1 && len < 8)){
     const flProg = clamp((prog-0.35)/0.55,0,1);
     if(flProg > 0){
       const fe = ease(flProg);
@@ -532,7 +468,6 @@ function drawBBBranch(px, py, angle, len, depth, col, colGlow, prog, seed){
       ctx.globalAlpha = fe*(0.75+0.25*pulse);
       glow(colGlow, 5+pulse*4);
       ctx.fillStyle = col;
-      // bintang 5 kelopak kecil
       ctx.beginPath();
       for(let k=0;k<5;k++){
         const a = (k/5)*Math.PI*2 - Math.PI/2;
@@ -544,13 +479,11 @@ function drawBBBranch(px, py, angle, len, depth, col, colGlow, prog, seed){
         const by2 = Math.sin(a+0.35)*r*0.38;
         if(k===0) ctx.moveTo(ox,oy);
         ctx.bezierCurveTo(ax,ay, bx2,by2, ox,oy);
-        // langsung ke kelopak berikutnya lewat tengah
         const na=(((k+1)/5)*Math.PI*2)-Math.PI/2;
         ctx.lineTo(Math.cos(na)*r, Math.sin(na)*r);
       }
       ctx.closePath();
       ctx.fill();
-      // titik tengah kuning kecil
       ng();
       ctx.fillStyle='rgba(255,235,100,0.90)';
       ctx.beginPath(); ctx.arc(0,0,r*0.28,0,Math.PI*2); ctx.fill();
@@ -560,7 +493,6 @@ function drawBBBranch(px, py, angle, len, depth, col, colGlow, prog, seed){
     return;
   }
 
-  // cabang baru: 2-3 cabang dari titik ini
   const numBranch = 2 + (bbRand(seed, depth*7+1) > 0.65 ? 1 : 0);
   for(let b=0;b<numBranch;b++){
     const spread  = 0.20 + bbRand(seed, depth*5+b*3)*0.22;
@@ -575,8 +507,6 @@ function drawBBBranch(px, py, angle, len, depth, col, colGlow, prog, seed){
 function drawBabysBreath(prog){
   if(prog < 0.10) return;
   const show = clamp((prog-0.10)/0.30, 0, 1);
-
-  // clip supaya cabang tidak keluar dari canvas
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
@@ -587,18 +517,16 @@ function drawBabysBreath(prog){
     if(cp<=0) return;
     const ep = ease(cp) * show;
     if(ep<=0) return;
-
     const rx = ROOT_X * W;
     const ry = ROOT_Y * H;
     const sH = cl.h * H * ep;
     const tipX = rx + cl.lean * W * ep;
-    const tipY = ry - sH;
     const seedBase = cl.lean * 77.3 + cl.h * 33.1;
 
     for(let s=0;s<2;s++){
       const offAng = (bbRand(seedBase, s*17)-0.5)*0.14;
       const stemLen = sH * (0.80 + bbRand(seedBase,s*7)*0.20);
-      const ang = Math.atan2(tipX - rx, ry - tipY) + offAng;
+      const ang = Math.atan2(tipX - rx, ry - (ry - sH)) + offAng;
       drawBBBranch(
         rx + (bbRand(seedBase,s*5)-0.5)*W*0.008,
         ry,
@@ -611,20 +539,14 @@ function drawBabysBreath(prog){
       );
     }
   });
-
   ctx.restore();
 }
 
-/* ══ FORGET-ME-NOT ══
-   5 kelopak oval/membulat, biru langit, tengah kuning,
-   tumbuh bergerombol di ujung cabang tipis berbulu,
-   posisi di sela-sela pinggir, ukuran kecil
-*/
 const FORGETMENOTS = [
-  { lean:-0.22, stemH:0.22, delay: 70, col:'#b8d8f8', colD:'#80b8ee', seed: 11.5 },
-  { lean:-0.08, stemH:0.18, delay: 80, col:'#c8e4ff', colD:'#98c8f8', seed: 33.2 },
-  { lean: 0.06, stemH:0.20, delay: 85, col:'#a8ccf0', colD:'#70a8e0', seed: 55.8 },
-  { lean: 0.20, stemH:0.16, delay: 95, col:'#b8d8ff', colD:'#88b8f0', seed: 77.4 },
+  { lean:-0.22, stemH:0.22, delay: 35, col:'#b8d8f8', colD:'#80b8ee', seed: 11.5 },
+  { lean:-0.08, stemH:0.18, delay: 40, col:'#c8e4ff', colD:'#98c8f8', seed: 33.2 },
+  { lean: 0.06, stemH:0.20, delay: 42, col:'#a8ccf0', colD:'#70a8e0', seed: 55.8 },
+  { lean: 0.20, stemH:0.16, delay: 47, col:'#b8d8ff', colD:'#88b8f0', seed: 77.4 },
 ];
 
 function fmnRand(seed, i){
@@ -641,14 +563,12 @@ function drawForgetMeNot(fm, prog){
   const cpx=rx+fm.lean*W*prog*0.22;
   const cpy=ry-sH*0.52;
 
-  // batang tipis berbulu
   ctx.save();
   const sg=ctx.createLinearGradient(rx,ry,tx,ty);
   sg.addColorStop(0,'#1a3010'); sg.addColorStop(1,'#5a7848');
   ctx.strokeStyle=sg; ctx.lineWidth=Math.max(1.0,W*0.003); ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(rx,ry); ctx.quadraticCurveTo(cpx,cpy,tx,ty); ctx.stroke();
 
-  // daun lanset berbulu di batang
   if(prog>0.22){
     const lp=clamp((prog-0.22)/0.35,0,1);
     [[0.30,-1],[0.30,1],[0.55,-1]].forEach(([frac,side])=>{
@@ -670,34 +590,29 @@ function drawForgetMeNot(fm, prog){
   }
   ctx.restore();
 
-  // gerombol bunga di ujung — 5-8 bunga kecil
   const flProg=clamp((prog-0.38)/0.55,0,1);
   if(flProg<=0) return;
   const ep=ease(flProg);
   const pulse=0.5+0.5*Math.sin(t*0.055+fm.lean*7);
-  const nFlowers=6;
+  const nFlowers = isMobile ? 4 : 6;
 
   for(let fi=0;fi<nFlowers;fi++){
     const fep=ease(clamp((flProg-fi*0.08),0,1));
     if(fep<=0) continue;
-    // posisi tiap bunga menyebar dari ujung batang
     const offAng=fmnRand(fm.seed,fi*3)*Math.PI*2;
     const offR=W*(0.018+fmnRand(fm.seed,fi*5)*0.022)*fep;
     const fx=tx+Math.cos(offAng)*offR;
     const fy=ty+Math.sin(offAng)*offR*0.7;
 
-    // tangkai tipis ke tiap bunga
     ctx.save();
     ctx.strokeStyle='rgba(80,110,60,0.55)'; ctx.lineWidth=0.6;
     ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(fx,fy); ctx.stroke();
-
     ctx.translate(fx,fy);
     ctx.globalAlpha=fep*(0.85+0.15*pulse);
 
-    const r=W*(0.014+fmnRand(fm.seed,fi)*0.006)*fep; // sangat kecil
+    const r=W*(0.014+fmnRand(fm.seed,fi)*0.006)*fep;
     const rot=fmnRand(fm.seed,fi*11)*Math.PI*2;
 
-    // 5 kelopak oval membulat
     for(let k=0;k<5;k++){
       const pAng=(k/5)*Math.PI*2+rot;
       ctx.save();
@@ -708,7 +623,6 @@ function drawForgetMeNot(fm, prog){
       pg.addColorStop(0.3,fm.col);
       pg.addColorStop(1,fm.colD);
       ctx.fillStyle=pg;
-      // kelopak oval membulat menyerupai hati
       ctx.beginPath();
       ctx.moveTo(0,0);
       ctx.bezierCurveTo(-r*0.55,-r*0.3,-r*0.6,-r*1.1,-r*0.1,-r*1.4);
@@ -717,7 +631,6 @@ function drawForgetMeNot(fm, prog){
       ctx.closePath(); ctx.fill(); ng();
       ctx.restore();
     }
-    // cincin tengah kuning — khas forget-me-not
     glow('#ffe040',8);
     const cg=ctx.createRadialGradient(0,0,0,0,0,r*0.38);
     cg.addColorStop(0,'#ffffff');
@@ -731,17 +644,11 @@ function drawForgetMeNot(fm, prog){
   ctx.globalAlpha=1;
 }
 
-/* ══ CHAMOMILE ══
-   Kepala bunga: kubah kuning keemasan di tengah (kerucut),
-   dikelilingi 13-16 kelopak putih bersih yang sedikit menekuk ke bawah.
-   Batang ramping tegak bercabang, daun halus seperti pakis hijau pucat.
-   Posisi: di tengah sekitar lily, ukuran sedang.
-*/
 const CHAMOMILES = [
-  { lean:-0.20, stemH:0.32, delay: 45, seed: 17.3 },
-  { lean:-0.06, stemH:0.28, delay: 35, seed: 42.8 },
-  { lean: 0.08, stemH:0.30, delay: 50, seed: 68.1 },
-  { lean: 0.22, stemH:0.26, delay: 55, seed: 29.6 },
+  { lean:-0.20, stemH:0.32, delay: 22, seed: 17.3 },
+  { lean:-0.06, stemH:0.28, delay: 17, seed: 42.8 },
+  { lean: 0.08, stemH:0.30, delay: 25, seed: 68.1 },
+  { lean: 0.22, stemH:0.26, delay: 27, seed: 29.6 },
 ];
 
 function chRand(seed,i){ const x=Math.sin(seed*83.1+i*257.3)*43758.5; return x-Math.floor(x); }
@@ -755,7 +662,6 @@ function drawChamomile(cm, prog){
   const cpx=rx+cm.lean*W*prog*0.25;
   const cpy=ry-sH*0.52;
 
-  // ── batang ramping bercabang ──
   ctx.save();
   const sg=ctx.createLinearGradient(rx,ry,tx,ty);
   sg.addColorStop(0,'#1a3010'); sg.addColorStop(1,'#6a9458');
@@ -764,8 +670,7 @@ function drawChamomile(cm, prog){
   ctx.beginPath(); ctx.moveTo(rx,ry); ctx.quadraticCurveTo(cpx,cpy,tx,ty); ctx.stroke();
   ng();
 
-  // ── daun pakis halus di batang ──
-  if(prog>0.18){
+  if(prog>0.18 && !isMobile){
     const lp=clamp((prog-0.18)/0.38,0,1);
     [[0.25,-1,0.52],[0.25,1,0.48],[0.50,-1,0.44],[0.50,1,0.40]].forEach(([frac,side,sc])=>{
       const ep2=ease(clamp(lp*1.4-frac*0.5,0,1));
@@ -774,11 +679,9 @@ function drawChamomile(cm, prog){
       const ly=(1-frac)*(1-frac)*ry+2*(1-frac)*frac*cpy+frac*frac*ty;
       ctx.save();
       ctx.translate(lx,ly); ctx.rotate(side*(0.55+frac*0.1)); ctx.scale(ep2*sc,ep2*sc);
-      // daun majemuk kecil mirip pakis
       const mainLen=W*0.048;
       ctx.strokeStyle='#5a8248'; ctx.lineWidth=0.8;
       ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(side*mainLen,0); ctx.stroke();
-      // helaian kecil sepanjang tulang utama
       for(let k=1;k<=4;k++){
         const fx=side*mainLen*(k/5);
         const flen=mainLen*0.28*(1-k*0.15);
@@ -792,36 +695,30 @@ function drawChamomile(cm, prog){
   }
   ctx.restore();
 
-  // ── kepala bunga chamomile ──
   const flProg=clamp((prog-0.32)/0.58,0,1);
   if(flProg<=0) return;
   const ep=ease(flProg);
   const pulse=0.5+0.5*Math.sin(t*0.055+cm.lean*9);
-  const pR=W*0.026*ep; // ukuran kecil sesuai aslinya
+  const pR=W*0.026*ep;
 
   ctx.save();
   ctx.translate(tx,ty);
   ctx.globalAlpha=ep*(0.90+0.10*pulse);
 
-  // kelopak putih (13 kelopak) sedikit menekuk ke bawah
-  const nPetals=13;
+  const nPetals = isMobile ? 9 : 13;
   for(let i=0;i<nPetals;i++){
     const ang=(i/nPetals)*Math.PI*2;
     const wobble=Math.sin(t*0.018+i*1.4+cm.lean*5)*0.018;
     ctx.save();
     ctx.rotate(ang+wobble);
-
-    const pl=pR*1.55; // panjang kelopak
-    const pw=pR*0.28; // lebar kelopak
-
+    const pl=pR*1.55;
+    const pw=pR*0.28;
     glow('#f0f4ff',8+pulse*5);
     const pg=ctx.createLinearGradient(0,0,0,-pl);
     pg.addColorStop(0,'#f8f8f8');
     pg.addColorStop(0.4,'#ffffff');
     pg.addColorStop(1,'#eef0f8');
     ctx.fillStyle=pg;
-
-    // kelopak sempit memanjang, ujung sedikit membulat, menekuk ke bawah
     ctx.beginPath();
     ctx.moveTo(0,0);
     ctx.bezierCurveTo(-pw*0.6,-pl*0.18,-pw*0.55,-pl*0.62,-pw*0.08,-pl);
@@ -829,16 +726,11 @@ function drawChamomile(cm, prog){
     ctx.bezierCurveTo( pw*0.55,-pl*0.62, pw*0.6,-pl*0.18, 0,0);
     ctx.closePath(); ctx.fill();
     ng();
-    // garis tengah kelopak
-    ctx.strokeStyle='rgba(180,200,255,0.30)'; ctx.lineWidth=0.5;
-    ctx.beginPath(); ctx.moveTo(0,-pl*0.05); ctx.lineTo(0,-pl*0.85); ctx.stroke();
     ctx.restore();
   }
 
-  // kubah/kerucut tengah kuning keemasan
   const domeR=pR*0.48;
   glow('#f0a800',18+pulse*12);
-  // kubah sedikit cembung ke atas (kerucut)
   const dg=ctx.createRadialGradient(0,-domeR*0.18,1,0,0,domeR);
   dg.addColorStop(0,'#fffce8');
   dg.addColorStop(0.25,'#ffdd30');
@@ -846,21 +738,20 @@ function drawChamomile(cm, prog){
   dg.addColorStop(1,'#c87000');
   ctx.fillStyle=dg;
   ctx.beginPath();
-  // ellipse sedikit pipih di bawah (kerucut)
   ctx.ellipse(0,-domeR*0.12, domeR, domeR*1.10, 0, 0, Math.PI*2);
   ctx.fill();
   ng();
 
-  // tekstur titik-titik floret di kubah
-  ctx.fillStyle='rgba(160,80,0,0.35)';
-  for(let i=0;i<18;i++){
-    const a=(i/18)*Math.PI*2;
-    const rd=domeR*(0.35+chRand(cm.seed,i)*0.42);
-    ctx.beginPath();
-    ctx.arc(Math.cos(a)*rd, Math.sin(a)*rd-domeR*0.1, 1.0,0,Math.PI*2);
-    ctx.fill();
+  if(!isMobile){
+    ctx.fillStyle='rgba(160,80,0,0.35)';
+    for(let i=0;i<18;i++){
+      const a=(i/18)*Math.PI*2;
+      const rd=domeR*(0.35+chRand(cm.seed,i)*0.42);
+      ctx.beginPath();
+      ctx.arc(Math.cos(a)*rd, Math.sin(a)*rd-domeR*0.1, 1.0,0,Math.PI*2);
+      ctx.fill();
+    }
   }
-  // highlight puncak kubah
   ctx.fillStyle='rgba(255,255,200,0.55)';
   ctx.beginPath(); ctx.arc(0,-domeR*0.32,domeR*0.22,0,Math.PI*2); ctx.fill();
 
@@ -868,21 +759,15 @@ function drawChamomile(cm, prog){
   ctx.globalAlpha=1;
 }
 
-/* ══ MAWAR (ROSE) ══
-   Kelopak lembut berlapis, spiral dari tengah ke luar.
-   Warna merah seperti foto. Batang berkayu berduri,
-   daun majemuk bergerigi 5-7 helai per tangkai.
-*/
 const ROSES = [
-  { lean:-0.12, stemH:0.40, delay: 25, seed: 21.3,
-    col1:'#a00040', col2:'#e0206a', col3:'#f050a0', col4:'#ffaad0' }, // pink tua/magenta
-  { lean: 0.08, stemH:0.44, delay: 40, seed: 34.9,
-    col1:'#cc1030', col2:'#ee3050', col3:'#ff6080', col4:'#ffaabb' }, // merah-pink
+  { lean:-0.12, stemH:0.40, delay: 12, seed: 21.3,
+    col1:'#a00040', col2:'#e0206a', col3:'#f050a0', col4:'#ffaad0' },
+  { lean: 0.08, stemH:0.44, delay: 20, seed: 34.9,
+    col1:'#cc1030', col2:'#ee3050', col3:'#ff6080', col4:'#ffaabb' },
 ];
 
 function roseRand(seed,i){ const x=Math.sin(seed*97.3+i*281.7)*43758.5; return x-Math.floor(x); }
 
-// satu kelopak mawar — oval lembut, detail realistis
 function drawRosePetal(r, layer, totalL, ang, colA, colB, prog){
   const ep=ease(clamp(prog,0,1));
   ctx.save();
@@ -896,7 +781,6 @@ function drawRosePetal(r, layer, totalL, ang, colA, colB, prog){
   const pw  = r*sc*0.78;
   const curl= (1-layer/totalL)*0.22;
 
-  // shadow di bawah kelopak (kedalaman)
   ctx.save();
   ctx.translate(0, pl*0.04);
   ctx.fillStyle='rgba(40,0,0,0.22)';
@@ -905,7 +789,6 @@ function drawRosePetal(r, layer, totalL, ang, colA, colB, prog){
   ctx.fill();
   ctx.restore();
 
-  // gradien realistis — terang di tengah, gelap di pangkal & tepi
   const pg=ctx.createRadialGradient(0,-pl*0.38,pl*0.04, 0,-pl*0.28,pl*0.92);
   pg.addColorStop(0,  colB+'ff');
   pg.addColorStop(0.30,colA+'ff');
@@ -916,35 +799,26 @@ function drawRosePetal(r, layer, totalL, ang, colA, colB, prog){
 
   ctx.beginPath();
   ctx.moveTo(0,0);
-  ctx.bezierCurveTo(
-    -pw*(0.52+curl),-pl*0.14,
-    -pw*(0.65+curl),-pl*0.52,
-    -pw*0.20,-pl*(0.86+curl*0.25)
-  );
+  ctx.bezierCurveTo(-pw*(0.52+curl),-pl*0.14,-pw*(0.65+curl),-pl*0.52,-pw*0.20,-pl*(0.86+curl*0.25));
   ctx.bezierCurveTo(-pw*0.07,-pl*1.04, pw*0.07,-pl*1.04, pw*0.20,-pl*(0.86+curl*0.25));
-  ctx.bezierCurveTo(
-    pw*(0.65+curl),-pl*0.52,
-    pw*(0.52+curl),-pl*0.14,
-    0,0
-  );
+  ctx.bezierCurveTo(pw*(0.65+curl),-pl*0.52,pw*(0.52+curl),-pl*0.14,0,0);
   ctx.closePath(); ctx.fill();
 
-  // garis vena halus
-  ctx.strokeStyle=`rgba(60,0,0,0.15)`; ctx.lineWidth=0.5;
-  for(let v=0;v<3;v++){
-    const vx=(v/2-0.5)*pw*0.45;
+  if(!isMobile){
+    ctx.strokeStyle=`rgba(60,0,0,0.15)`; ctx.lineWidth=0.5;
+    for(let v=0;v<3;v++){
+      const vx=(v/2-0.5)*pw*0.45;
+      ctx.beginPath();
+      ctx.moveTo(vx*0.4,-pl*0.08);
+      ctx.quadraticCurveTo(vx,-pl*0.48, vx*0.7,-pl*0.80);
+      ctx.stroke();
+    }
+    ctx.strokeStyle='rgba(255,180,180,0.30)'; ctx.lineWidth=0.8;
     ctx.beginPath();
-    ctx.moveTo(vx*0.4,-pl*0.08);
-    ctx.quadraticCurveTo(vx,-pl*0.48, vx*0.7,-pl*0.80);
+    ctx.moveTo(-pw*0.20,-pl*0.12);
+    ctx.quadraticCurveTo(-pw*0.55,-pl*0.45,-pw*0.18,-pl*0.78);
     ctx.stroke();
   }
-
-  // highlight putih di sisi atas kelopak (cahaya)
-  ctx.strokeStyle='rgba(255,180,180,0.30)'; ctx.lineWidth=0.8;
-  ctx.beginPath();
-  ctx.moveTo(-pw*0.20,-pl*0.12);
-  ctx.quadraticCurveTo(-pw*0.55,-pl*0.45,-pw*0.18,-pl*0.78);
-  ctx.stroke();
 
   ctx.restore();
 }
@@ -958,7 +832,6 @@ function drawRose(ro, prog){
   const cpx=rx+ro.lean*W*prog*0.28;
   const cpy=ry-sH*0.52;
 
-  // ── batang berkayu dengan duri ──
   ctx.save();
   const sg=ctx.createLinearGradient(rx,ry,tx,ty);
   sg.addColorStop(0,'#1a2e0e'); sg.addColorStop(0.5,'#2e5020'); sg.addColorStop(1,'#4a7235');
@@ -967,12 +840,10 @@ function drawRose(ro, prog){
   ctx.beginPath(); ctx.moveTo(rx,ry); ctx.quadraticCurveTo(cpx,cpy,tx,ty); ctx.stroke();
   ng();
 
-  // duri kecil di batang
-  if(prog>0.15){
+  if(prog>0.15 && !isMobile){
     const dp=clamp((prog-0.15)/0.30,0,1);
-    const nThorns=4;
-    for(let n=0;n<nThorns;n++){
-      const frac=0.15+(n/nThorns)*0.70;
+    for(let n=0;n<4;n++){
+      const frac=0.15+(n/4)*0.70;
       const bx=(1-frac)*(1-frac)*rx+2*(1-frac)*frac*cpx+frac*frac*tx;
       const by=(1-frac)*(1-frac)*ry+2*(1-frac)*frac*cpy+frac*frac*ty;
       const side=n%2===0?-1:1;
@@ -988,7 +859,6 @@ function drawRose(ro, prog){
     }
   }
 
-  // ── daun majemuk (5-7 helai per tangkai) ──
   if(prog>0.22){
     const lp=clamp((prog-0.22)/0.38,0,1);
     [[0.28,-1],[0.28,1],[0.52,-1],[0.52,1],[0.70,-1]].forEach(([frac,side],li)=>{
@@ -998,11 +868,9 @@ function drawRose(ro, prog){
       const ly=(1-frac)*(1-frac)*ry+2*(1-frac)*frac*cpy+frac*frac*ty;
       ctx.save();
       ctx.translate(lx,ly); ctx.rotate(side*(0.55+li*0.05)); ctx.scale(ep2,ep2);
-      // tangkai daun majemuk dengan 5 helai
-      const tl=W*0.055; // panjang tangkai
+      const tl=W*0.055;
       ctx.strokeStyle='#4a6835'; ctx.lineWidth=0.8;
       ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(side*tl,0); ctx.stroke();
-      // 5 helai daun di tangkai — lonjong bergerigi
       const leafPos=[0.18,0.38,0.58,0.75,0.92];
       const leafSides=[-1,1,-1,1,0];
       leafPos.forEach((lp2,k)=>{
@@ -1019,20 +887,17 @@ function drawRose(ro, prog){
         glow('#3a6028',3);
         ctx.beginPath();
         ctx.moveTo(0,0);
-        // tepi bergerigi
         const nSeg=5;
         for(let s=0;s<nSeg;s++){
           const sf=s/nSeg;
-          const nx=-lfw*(Math.sin(sf*Math.PI))*(s%2===0?1.1:0.75);
-          const ny=-lfl*sf;
-          ctx.lineTo(nx,ny);
+          const lekuk = s%2===0 ? 1.0 : 0.72;
+          ctx.lineTo(-lfw*(Math.sin(sf*Math.PI))*lekuk, -lfl*sf);
         }
         ctx.lineTo(0,-lfl);
         for(let s=nSeg;s>=0;s--){
           const sf=s/nSeg;
-          const nx=lfw*(Math.sin(sf*Math.PI))*(s%2===0?1.1:0.75);
-          const ny=-lfl*sf;
-          ctx.lineTo(nx,ny);
+          const lekuk = s%2===0 ? 1.0 : 0.72;
+          ctx.lineTo(lfw*(Math.sin(sf*Math.PI))*lekuk, -lfl*sf);
         }
         ctx.closePath(); ctx.fill(); ng();
         ctx.restore();
@@ -1042,14 +907,12 @@ function drawRose(ro, prog){
   }
   ctx.restore();
 
-  // ── kepala bunga mawar berlapis spiral ──
   const flProg=clamp((prog-0.30)/0.62,0,1);
   if(flProg<=0) return;
   const ep=ease(flProg);
   const r=W*0.060*ep;
   const pulse=0.5+0.5*Math.sin(t*0.048+ro.lean*7);
 
-  // sepal hijau di belakang kelopak
   const sepalProg=clamp(flProg*1.3,0,1);
   if(sepalProg>0){
     ctx.save(); ctx.translate(tx,ty);
@@ -1070,7 +933,6 @@ function drawRose(ro, prog){
   ctx.save();
   ctx.translate(tx,ty);
 
-  // lapisan kelopak spiral: 6 lapisan, dari dalam ke luar
   const layers=[
     {n:4,  r_sc:0.30, col:[ro.col1,ro.col2]},
     {n:6,  r_sc:0.45, col:[ro.col1,ro.col2]},
@@ -1079,8 +941,10 @@ function drawRose(ro, prog){
     {n:12, r_sc:0.88, col:[ro.col3,ro.col4]},
     {n:14, r_sc:1.00, col:[ro.col3,ro.col4]},
   ];
+  const maxLayer = isMobile ? 4 : layers.length;
 
   layers.forEach((lyr,li)=>{
+    if(li >= maxLayer) return;
     const lProg=clamp((flProg-li*0.06)*1.5,0,1);
     if(lProg<=0) return;
     const rotOff=(li/layers.length)*Math.PI/lyr.n + li*0.15;
@@ -1092,7 +956,6 @@ function drawRose(ro, prog){
     }
   });
 
-  // inti mawar — gelap di tengah
   ng();
   const cg=ctx.createRadialGradient(0,0,0,0,0,r*0.22);
   cg.addColorStop(0,'#3a0000'); cg.addColorStop(1,ro.col1);
@@ -1103,17 +966,11 @@ function drawRose(ro, prog){
   ctx.globalAlpha=1;
 }
 
-/* ══ POPPY ══
-   4-6 kelopak sangat halus tipis, kerut-kerut tekstur,
-   warna kuning mencolok seperti foto.
-   Tengah: banyak stamen mengelilingi kepala putik bulat hijau.
-   Batang tipis panjang, daun berlekuk jorong.
-*/
 const POPPIES = [
-  { lean:-0.20, stemH:0.48, delay: 35, seed: 83.2,
-    col1:'#cc1020', col2:'#ee2838', col3:'#ff5060', base:'#880010' }, // merah menyala
-  { lean: 0.18, stemH:0.42, delay: 52, seed: 61.4,
-    col1:'#ff8830', col2:'#ffaa50', col3:'#ffcc80', base:'#cc5500' }, // oranye peach
+  { lean:-0.20, stemH:0.48, delay: 17, seed: 83.2,
+    col1:'#cc1020', col2:'#ee2838', col3:'#ff5060', base:'#880010' },
+  { lean: 0.18, stemH:0.42, delay: 26, seed: 61.4,
+    col1:'#ff8830', col2:'#ffaa50', col3:'#ffcc80', base:'#cc5500' },
 ];
 
 function popRand(s,i){ const x=Math.sin(s*103.7+i*263.9)*43758.5; return x-Math.floor(x); }
@@ -1127,7 +984,6 @@ function drawPoppy(po, prog){
   const cpx=rx+po.lean*W*prog*0.22;
   const cpy=ry-sH*0.50;
 
-  /* ── batang tipis panjang ── */
   ctx.save();
   const sg=ctx.createLinearGradient(rx,ry,tx,ty);
   sg.addColorStop(0,'#182810'); sg.addColorStop(1,'#507840');
@@ -1136,8 +992,7 @@ function drawPoppy(po, prog){
   ctx.beginPath(); ctx.moveTo(rx,ry); ctx.quadraticCurveTo(cpx,cpy,tx,ty); ctx.stroke();
   ng();
 
-  /* ── daun berlekuk jorong di batang ── */
-  if(prog>0.20){
+  if(prog>0.20 && !isMobile){
     const lp=clamp((prog-0.20)/0.38,0,1);
     [[0.25,-1],[0.25,1],[0.48,-1],[0.48,1]].forEach(([frac,side])=>{
       const ep2=ease(clamp(lp*1.5-frac*0.5,0,1));
@@ -1150,9 +1005,7 @@ function drawPoppy(po, prog){
       const lg=ctx.createLinearGradient(0,0,0,-ll);
       lg.addColorStop(0,'#2a4818'); lg.addColorStop(0.5,'#487835'); lg.addColorStop(1,'#70a058');
       ctx.fillStyle=lg;
-      // daun jorong dengan lekukan di tepi
-      ctx.beginPath();
-      ctx.moveTo(0,0);
+      ctx.beginPath(); ctx.moveTo(0,0);
       const nSeg=6;
       for(let s=0;s<=nSeg;s++){
         const sf=s/nSeg;
@@ -1166,14 +1019,11 @@ function drawPoppy(po, prog){
         ctx.lineTo(lw*Math.sin(sf*Math.PI)*lekuk, -ll*sf);
       }
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=0.5;
-      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-ll*0.88); ctx.stroke();
       ctx.restore();
     });
   }
   ctx.restore();
 
-  /* ── kuncup sebelum mekar (muncul dulu lalu terbuka) ── */
   const budProg  = clamp((prog-0.28)/0.20, 0, 1);
   const openProg = clamp((prog-0.40)/0.55, 0, 1);
   if(budProg<=0) return;
@@ -1181,7 +1031,6 @@ function drawPoppy(po, prog){
   ctx.save();
   ctx.translate(tx,ty);
 
-  // sepal jatuh seiring mekar
   const sepalAlpha = clamp(1 - openProg*2.5, 0, 1);
   if(sepalAlpha>0){
     for(let s=0;s<3;s++){
@@ -1198,12 +1047,11 @@ function drawPoppy(po, prog){
   }
   ctx.globalAlpha=1;
 
-  /* ── kelopak poppy ── */
   const ep=ease(openProg);
   if(ep<=0){ ctx.restore(); return; }
   const r=W*0.068;
   const pulse=0.5+0.5*Math.sin(t*0.045+po.lean*8);
-  const N=5; // 5 kelopak
+  const N=5;
 
   for(let i=0;i<N;i++){
     const ang=(i/N)*Math.PI*2 + (i%2)*Math.PI/N;
@@ -1216,38 +1064,33 @@ function drawPoppy(po, prog){
     const pl=r*(1.15+popRand(po.seed,i)*0.25);
     const pw=r*(0.82+popRand(po.seed,i+5)*0.22);
 
-    // gradien warna kuning — terang di tengah, oranye di tepi
     glow(po.col2, 20+pulse*12);
     const pg=ctx.createRadialGradient(0,-pl*0.30,pl*0.04, 0,-pl*0.30,pl*1.0);
-    pg.addColorStop(0,  po.col1);   // kuning terang tengah
+    pg.addColorStop(0, po.col1);
     pg.addColorStop(0.40,po.col2);
     pg.addColorStop(0.80,po.col3);
-    pg.addColorStop(1,  po.base);   // oranye/coklat di dasar
+    pg.addColorStop(1,  po.base);
     ctx.fillStyle=pg;
 
-    // kelopak sangat halus & tipis — lebar, kerutan direpresentasikan bezier
     ctx.beginPath();
     ctx.moveTo(0,0);
-    // tepi kiri — bergelombang halus
     ctx.bezierCurveTo(-pw*0.65,-pl*0.12,-pw*0.90,-pl*0.42,-pw*0.60,-pl*0.78);
     ctx.bezierCurveTo(-pw*0.38,-pl*0.92,-pw*0.15,-pl*1.02, 0,-pl);
-    // tepi kanan
     ctx.bezierCurveTo( pw*0.15,-pl*1.02, pw*0.38,-pl*0.92, pw*0.60,-pl*0.78);
     ctx.bezierCurveTo( pw*0.90,-pl*0.42, pw*0.65,-pl*0.12, 0,0);
     ctx.closePath(); ctx.fill();
     ng();
 
-    // kerutan halus pada kelopak (vena)
-    ctx.strokeStyle=`rgba(200,120,0,0.18)`; ctx.lineWidth=0.6;
-    for(let v=0;v<4;v++){
-      const vx=(v/3-0.5)*pw*0.55;
-      ctx.beginPath();
-      ctx.moveTo(vx*0.3,-pl*0.06);
-      ctx.quadraticCurveTo(vx,-pl*0.50,vx*0.65,-pl*0.85);
-      ctx.stroke();
+    if(!isMobile){
+      ctx.strokeStyle=`rgba(200,120,0,0.18)`; ctx.lineWidth=0.6;
+      for(let v=0;v<4;v++){
+        const vx=(v/3-0.5)*pw*0.55;
+        ctx.beginPath();
+        ctx.moveTo(vx*0.3,-pl*0.06);
+        ctx.quadraticCurveTo(vx,-pl*0.50,vx*0.65,-pl*0.85);
+        ctx.stroke();
+      }
     }
-
-    // bercak gelap di dasar kelopak — khas poppy
     ctx.fillStyle='rgba(150,60,0,0.28)';
     ctx.beginPath();
     ctx.ellipse(0,-pl*0.10, pw*0.30, pl*0.12, 0, 0, Math.PI*2);
@@ -1256,11 +1099,10 @@ function drawPoppy(po, prog){
   }
   ctx.globalAlpha=1;
 
-  /* ── stamen banyak mengelilingi kepala putik ── */
   const stProg=clamp((openProg-0.45)/0.48,0,1);
   if(stProg>0){
     const se=ease(stProg);
-    const nSt=28;
+    const nSt = isMobile ? 16 : 28;
     for(let i=0;i<nSt;i++){
       const sang=(i/nSt)*Math.PI*2;
       const slen=r*(0.30+popRand(po.seed,i*2)*0.18)*se;
@@ -1271,7 +1113,6 @@ function drawPoppy(po, prog){
       ctx.save();
       ctx.strokeStyle='rgba(80,40,0,0.75)'; ctx.lineWidth=0.7;
       ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
-      // anther kecil kuning di ujung
       glow('#ffdd00',4);
       ctx.fillStyle='#ddaa00'; ctx.globalAlpha=se*0.9;
       ctx.beginPath(); ctx.arc(ex,ey,1.4,0,Math.PI*2); ctx.fill();
@@ -1280,21 +1121,21 @@ function drawPoppy(po, prog){
     }
     ctx.globalAlpha=1;
 
-    // kepala putik bulat hijau di tengah
     glow('#60aa30',12);
     const hg=ctx.createRadialGradient(0,0,1,0,0,r*0.20);
     hg.addColorStop(0,'#c0ee80'); hg.addColorStop(0.5,'#70c040'); hg.addColorStop(1,'#408820');
     ctx.fillStyle=hg; ctx.globalAlpha=se;
     ctx.beginPath(); ctx.arc(0,0,r*0.20,0,Math.PI*2); ctx.fill();
-    // garis-garis radial di kepala putik
     ng();
-    ctx.strokeStyle='rgba(30,80,10,0.45)'; ctx.lineWidth=0.8;
-    for(let s=0;s<8;s++){
-      const a=(s/8)*Math.PI*2;
-      ctx.beginPath();
-      ctx.moveTo(0,0);
-      ctx.lineTo(Math.cos(a)*r*0.18,Math.sin(a)*r*0.18);
-      ctx.stroke();
+    if(!isMobile){
+      ctx.strokeStyle='rgba(30,80,10,0.45)'; ctx.lineWidth=0.8;
+      for(let s=0;s<8;s++){
+        const a=(s/8)*Math.PI*2;
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.lineTo(Math.cos(a)*r*0.18,Math.sin(a)*r*0.18);
+        ctx.stroke();
+      }
     }
     ctx.globalAlpha=1;
   }
@@ -1304,31 +1145,33 @@ function drawPoppy(po, prog){
 
 /* ══ MAIN LOOP ══ */
 function draw(){
-  // --- background layer (full layar) ---
-  drawBackground();
-  drawStars();
+  // Background: hanya di-render ulang kalau perlu
+  if(bgDirty){
+    drawBackground();
+    drawStarsStatic();
+    bgDirty = false;
+  } else {
+    // hanya clear area glitter (atau clear full untuk glitter)
+    bgCtx.clearRect(0,0,BW,BH);
+    drawBackground();
+    drawStarsStatic();
+  }
   drawGlitters(clamp(t/TOTAL,0,1));
 
-  // --- bunga layer (ukuran tetap 780x680) ---
   ctx.clearRect(0,0,W,H);
-  // Baby's Breath — paling belakang
   drawBabysBreath(clamp(t/TOTAL,0,1));
-  // Forget-me-not — di sela pinggir
   FORGETMENOTS.forEach(fm=>{
     const fp=clamp((t-fm.delay)/(TOTAL*0.70),0,1);
     drawForgetMeNot(fm,fp);
   });
-  // Chamomile — agak ke atas & melebar
   CHAMOMILES.forEach(cm=>{
     const fp=clamp((t-cm.delay)/(TOTAL*0.70),0,1);
     drawChamomile(cm,fp);
   });
-  // Lavender — di belakang lily
   LAVENDERS.sort((a,b)=>Math.abs(b.lean)-Math.abs(a.lean)).forEach(lv=>{
     const fp = clamp((t-lv.delay)/(TOTAL*0.72),0,1);
     drawLavender(lv, fp);
   });
-  // Lily
   [...FLOWERS].sort((a,b)=>Math.abs(b.lean)-Math.abs(a.lean)).forEach(f=>{
     const fp=clamp((t-f.delay)/(TOTAL*0.70),0,1);
     if(fp>0){
@@ -1337,24 +1180,21 @@ function draw(){
       drawLily(tx, ty, f.petalR*W, fp, f.id);
     }
   });
-  // Poppy — paling depan tengah bawah
   POPPIES.sort((a,b)=>Math.abs(b.lean)-Math.abs(a.lean)).forEach(po=>{
     const fp=clamp((t-po.delay)/(TOTAL*0.72),0,1);
     drawPoppy(po,fp);
   });
-  // Mawar — paling depan tengah bawah
   ROSES.sort((a,b)=>Math.abs(b.lean)-Math.abs(a.lean)).forEach(ro=>{
     const fp=clamp((t-ro.delay)/(TOTAL*0.72),0,1);
     drawRose(ro,fp);
   });
-  // increment 2x lebih cepat
-  t = Math.min(t + 2, TOTAL * 1.5);
+
+  t = Math.min(t + T_SPEED, TOTAL * 1.5);
   requestAnimationFrame(draw);
 }
 draw();
 </script>
 
-<!-- ── UI KONTROL ── -->
 <style>
 #ui-controls{
   position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
@@ -1385,7 +1225,6 @@ draw();
 .ctrl-btn:active{ transform:translateY(0); }
 .ctrl-btn svg{ width:14px; height:14px; flex-shrink:0; }
 
-/* musik player mini */
 #music-bar{
   position:fixed; top:20px; left:50%; transform:translateX(-50%);
   z-index:100;
@@ -1408,7 +1247,6 @@ draw();
 }
 @keyframes noteBounce{ from{transform:translateY(0)} to{transform:translateY(-3px)} }
 
-/* notif download */
 #dl-toast{
   position:fixed; top:72px; left:50%; transform:translateX(-50%);
   z-index:200;
@@ -1427,17 +1265,14 @@ draw();
 #dl-toast.show{ opacity:1; }
 </style>
 
-<!-- music bar -->
 <div id="music-bar">
   <span id="music-note">♪</span>
   <span id="music-title">When I Was Your Man — Bruno Mars</span>
   <button id="music-toggle" onclick="toggleMusic()" style="background:none;border:none;color:rgba(255,220,235,0.80);cursor:pointer;font-size:13px;padding:0 4px;">⏸</button>
 </div>
 
-<!-- toast -->
 <div id="dl-toast">✓ Sedang menyimpan gambar...</div>
 
-<!-- kontrol bawah -->
 <div id="ui-controls">
   <button class="ctrl-btn" onclick="downloadWallpaper()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -1447,18 +1282,15 @@ draw();
   </button>
 </div>
 
-<!-- audio lokal -->
 <audio id="bgMusic" loop>
   <source src="hahay.mp3" type="audio/mpeg">
 </audio>
 
 <script>
-/* ── MUSIK — autoplay hahay.mp3 ── */
 const audio     = document.getElementById('bgMusic');
 const musicBar  = document.getElementById('music-bar');
 const toggleBtn = document.getElementById('music-toggle');
 
-// autoplay langsung saat halaman dibuka
 audio.volume = 0.75;
 const playPromise = audio.play();
 if(playPromise !== undefined){
@@ -1466,7 +1298,6 @@ if(playPromise !== undefined){
     musicBar.classList.add('visible');
     toggleBtn.textContent = '⏸';
   }).catch(()=>{
-    // browser blokir autoplay — tunggu interaksi pertama
     const startOnce = ()=>{
       audio.play().then(()=>{
         musicBar.classList.add('visible');
@@ -1493,29 +1324,18 @@ function toggleMusic(){
   }
 }
 
-/* ── DOWNLOAD WALLPAPER ── */
 function downloadWallpaper(){
   const toast = document.getElementById('dl-toast');
   toast.classList.add('show');
-
-  // merge bgCanvas + canvas bunga ke satu canvas
   const out = document.createElement('canvas');
   out.width  = window.innerWidth;
   out.height = window.innerHeight;
   const octx = out.getContext('2d');
-
-  // gambar background dulu
   octx.drawImage(bgCanvas, 0, 0, out.width, out.height);
-
-  // gambar bunga di tengah
   const c = document.getElementById('c');
-  const cw = parseInt(c.style.width  || c.width);
-  const ch = parseInt(c.style.height || c.height);
   const cx = (out.width  - c.width) / 2;
   const cy = (out.height - c.height) / 2;
   octx.drawImage(c, cx, cy, c.width, c.height);
-
-  // download
   out.toBlob(blob=>{
     const url = URL.createObjectURL(blob);
     const a   = document.createElement('a');
