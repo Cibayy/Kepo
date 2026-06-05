@@ -27,8 +27,13 @@ const bgCtx = bgCanvas.getContext('2d');
 
 let W, H, BW, BH;
 function resize(){
-  // ukuran logis bunga — TIDAK berubah
-  W = 780; H = 680;
+  // ukuran logis bunga — scale agar muat di layar device
+  const maxW = Math.min(window.innerWidth,  780);
+  const maxH = Math.min(window.innerHeight, 680);
+  // pertahankan rasio 780:680, fit dalam layar
+  const scale = Math.min(maxW / 780, maxH / 680);
+  W = Math.round(780 * scale);
+  H = Math.round(680 * scale);
   canvas.width  = W;
   canvas.height = H;
 
@@ -59,7 +64,7 @@ function glow(c,b){ ctx.shadowColor=c; ctx.shadowBlur=b; }
 function ng(){ ctx.shadowBlur=0; }
 
 let t = 0;
-const TOTAL = 380;
+const TOTAL = 200; // dipercepat
 
 /* ══ BINTANG — di bgCanvas (full layar) ══ */
 const STARS = Array.from({length:160},()=>({
@@ -1342,7 +1347,8 @@ function draw(){
     const fp=clamp((t-ro.delay)/(TOTAL*0.72),0,1);
     drawRose(ro,fp);
   });
-  t++;
+  // increment 2x lebih cepat
+  t = Math.min(t + 2, TOTAL * 1.5);
   requestAnimationFrame(draw);
 }
 draw();
